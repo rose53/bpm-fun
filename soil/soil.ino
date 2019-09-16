@@ -6,7 +6,7 @@
 #include <ESP8266WebServer.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
-#include <Fonts/FreeMono9pt7b.h>
+#include <Fonts/FreeSans18pt7b.h>
 #include "Adafruit_PCD8544.h"
 #include <Adafruit_MCP3008.h>
 #include <ArduinoJson.h>
@@ -31,11 +31,19 @@ Ticker soilMoistureTicker;
 const int AIR_VALUE   = 875;
 const int WATER_VALUE = 463;
 
+const int icon_wifi_pos_x = 0;  
+const int icon_wifi_pos_y = 1; 
+const int icon_data_pos_x = icon_wifi_pos_x;  
+const int icon_data_pos_y = icon_wifi_pos_y + 22;  
+const int data_pos_x = 30;
+
 const char *description[] = { "saturated", 
                               "adequately wet", 
                               "irrigation advice", 
                               "irrigation", 
                               "dangerously dry"};
+
+IPAddress ip;  
 
 void setup()   {
   Serial.begin(115200);
@@ -43,11 +51,12 @@ void setup()   {
   Serial.println('\n');
 
     display.begin();
-    display.setContrast(90);
+    display.setContrast(55);
+    display.setFont(NULL);
     display.clearDisplay();
     display.display();
 
-    display.setTextSize(1);
+    //display.setTextSize(1);
     display.setTextColor(BLACK);
     display.setCursor(0, 0);
     display.println("Soil");
@@ -69,16 +78,17 @@ void setup()   {
         display.print('.');
         display.display();
     }
+    ip = WiFi.localIP();
     display.println("");
 
     Serial.println('\n');
     Serial.print("Connected to ");
     Serial.println(WiFi.SSID());
     Serial.print("IP  : ");
-    Serial.println(WiFi.localIP());
+    Serial.println(ip);
 
     display.println(WiFi.SSID());
-    display.println(WiFi.localIP());
+    display.println(ip);
     display.display();
 
     if (MDNS.begin("soilmoisture")) {
@@ -105,8 +115,8 @@ void setup()   {
     server.begin();
     Serial.println("HTTP server started");
 
-    soilMoistureTicker.attach(30, readSoilMoisture);
     
+    soilMoistureTicker.attach(10, displayMoisture);    
 }
 
 
@@ -114,10 +124,26 @@ void loop() {
     server.handleClient();
 }
 
-void readSoilMoisture() {
-    Serial.println(adc.readADC(0));
+void displayMoisture() {
+    int moisture =  getMoisture();
+    display.clearDisplay();
+    
+    display.setFont(&FreeSans18pt7b);
+    display.setCursor(0,(display.height() + 18) / 2);
+    display.setTextSize(1);
+    display.print(moisture);
+    display.print("%");
+    //display.drawBitmap(icon_data_pos_x,icon_data_pos_y, humidity_icon_bmp, humidity_icon_width, humidity_icon_height, WHITE); 
+    display.setFont();
+    display.println();
+    display.print(ip);
+    display.display();  
 }
 
+/**
+ * Get a text vor the moisture
+ * @param moisture the relative moisture in percent
+ */
 const char* getDescription(int moisture) {
     const char* retVal = NULL;
     if (moisture <= 9) {
@@ -134,14 +160,35 @@ const char* getDescription(int moisture) {
     return retVal;
 }
 
+/**
+ * Calculates the moisture by reading some values and using the median to reduce the possiblity of inaccurate readings 
+ */
 int getMoisture() {
 
-    int value = adc.readADC(0);
-
-    value = max(value, WATER_VALUE);
+    int moistureArray[5];
+    int moistureArrayLenght = sizeof(moistureArray)/sizeof(int);
+    // read the values
+    for (int i = 0; i < moistureArrayLenght; i++) {
+        moistureArray[i] = adc.readADC(0);
+        delay(50);
+    }
+    
+    // sort the array, a simple bubblesort is enougth for this amount of samples
+    int tmp;
+    for (int i = 0; i < moistureArrayLenght - 1; i++) {
+        for (int j = i + 1; j < moistureArrayLenght; j++) {
+            if (moistureArray[i] > moistureArray[j]) {
+                tmp = moistureArray[i];
+                moistureArray[i] = moistureArray[j];
+                moistureArray[j] = tmp; 
+            }
+        }
+    }
+    // the element in the middle of the array is the median
+    int value = max(moistureArray[moistureArrayLenght >> 1], WATER_VALUE);
     value = min(value, AIR_VALUE);
 
     value = (value - WATER_VALUE) * 100 / (AIR_VALUE - WATER_VALUE);
-
+    // return the moisture in [%]
     return value;
 }

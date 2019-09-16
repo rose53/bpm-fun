@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="2.0.1">
+  <bpmn:collaboration id="Collaboration_0mx6ls0">
+    <bpmn:participant id="Participant_0yl5yls" name="Fun" processRef="funProcessId" />
+  </bpmn:collaboration>
+  <bpmn:process id="funProcessId" name="Fun" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_0sx8b6a">
+      <bpmn:lane id="Lane_1dm4z0v" name="Irrigation">
+        <bpmn:flowNodeRef>irrigationSubProcessId</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_1kmxwlp" name="Moisture Sensor">
+        <bpmn:flowNodeRef>ExclusiveGateway_1qu6oj3</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>flagDownTaskId</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>readSoilMoistureTaskId</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>startEventId</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ExclusiveGateway_067mvwo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>endEventId</bpmn:flowNodeRef>
+        <bpmn:childLaneSet id="LaneSet_0vxiveq" />
+      </bpmn:lane>
+      <bpmn:lane id="Lane_0tudj5g" name="Irrigation advice">
+        <bpmn:flowNodeRef>flagUpTaskId</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:exclusiveGateway id="ExclusiveGateway_1qu6oj3" default="SequenceFlow_1f0lzuo">
+      <bpmn:incoming>SequenceFlow_1bhjmnk</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_1f0lzuo</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_07nh3wm</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_0439ry3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="SequenceFlow_1nuhvmk" sourceRef="startEventId" targetRef="readSoilMoistureTaskId" />
+    <bpmn:sequenceFlow id="SequenceFlow_1dscefx" sourceRef="ExclusiveGateway_067mvwo" targetRef="endEventId" />
+    <bpmn:sequenceFlow id="SequenceFlow_1bhjmnk" sourceRef="readSoilMoistureTaskId" targetRef="ExclusiveGateway_1qu6oj3" />
+    <bpmn:sequenceFlow id="SequenceFlow_1f0lzuo" name="wet" sourceRef="ExclusiveGateway_1qu6oj3" targetRef="flagDownTaskId" />
+    <bpmn:sequenceFlow id="SequenceFlow_07nh3wm" name="irrigation advice" sourceRef="ExclusiveGateway_1qu6oj3" targetRef="flagUpTaskId">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${description == 'irrigation advice'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="SequenceFlow_0s31fqt" sourceRef="flagUpTaskId" targetRef="ExclusiveGateway_067mvwo" />
+    <bpmn:sequenceFlow id="SequenceFlow_031yy14" sourceRef="flagDownTaskId" targetRef="ExclusiveGateway_067mvwo" />
+    <bpmn:sequenceFlow id="SequenceFlow_0cfk0bp" sourceRef="irrigationSubProcessId" targetRef="readSoilMoistureTaskId" />
+    <bpmn:sequenceFlow id="SequenceFlow_0439ry3" name="irrigation" sourceRef="ExclusiveGateway_1qu6oj3" targetRef="irrigationSubProcessId">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${description == 'irrigation' || description == 'dangerously dry'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:scriptTask id="flagDownTaskId" name="Flag down" scriptFormat="javascript">
+      <bpmn:incoming>SequenceFlow_1f0lzuo</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_031yy14</bpmn:outgoing>
+      <bpmn:script>var payload = { status : false };
+
+var httpConnector = org.camunda.connect.Connectors.http(); 
+var resp = httpConnector.createRequest()
+                                        .put()
+                                        .url("http://localhost:31416/flag")
+                                        .contentType("application/json")
+                                        .payload(JSON.stringify(payload ))
+                                        .execute();
+
+var result = resp.getResponse();
+resp.close();</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="flagUpTaskId" name="Flag up" scriptFormat="javascript">
+      <bpmn:incoming>SequenceFlow_07nh3wm</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_0s31fqt</bpmn:outgoing>
+      <bpmn:script>var payload = { status : true };
+
+var httpConnector = org.camunda.connect.Connectors.http(); 
+var resp = httpConnector.createRequest()
+                                        .put()
+                                        .url("http://localhost:31416/flag")
+                                        .contentType("application/json")
+                                        .payload(JSON.stringify(payload ))
+                                        .execute();
+
+var result = resp.getResponse();
+resp.close();</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="readSoilMoistureTaskId" name="Read moisture" scriptFormat="javascript">
+      <bpmn:incoming>SequenceFlow_1nuhvmk</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_0cfk0bp</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_1bhjmnk</bpmn:outgoing>
+      <bpmn:script>var httpConnector = org.camunda.connect.Connectors.http(); 
+var resp = httpConnector.createRequest()
+                                        .get()
+                                        .url("http://localhost:31415/soilmoisture")
+                                        .execute();
+
+var result = JSON.parse(resp.getResponse());
+resp.close();
+
+
+execution.setVariable('dryness', parseInt(result.value, 10));
+execution.setVariable('description', result.description);</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:startEvent id="startEventId" name="Start">
+      <bpmn:outgoing>SequenceFlow_1nuhvmk</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:subProcess id="irrigationSubProcessId" name="Irrigation">
+      <bpmn:incoming>SequenceFlow_0439ry3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_0cfk0bp</bpmn:outgoing>
+      <bpmn:startEvent id="pumpStartEventId">
+        <bpmn:outgoing>SequenceFlow_1dq0ae8</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:endEvent id="pumpEndEventId">
+        <bpmn:incoming>SequenceFlow_1yqsb96</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:scriptTask id="pumpOnTaskId" name="Pump on" scriptFormat="javascript">
+        <bpmn:incoming>SequenceFlow_1dq0ae8</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_1ncxr97</bpmn:outgoing>
+        <bpmn:script>var payload = { status : true };
+
+var httpConnector = org.camunda.connect.Connectors.http(); 
+var resp = httpConnector.createRequest()
+                                        .put()
+                                        .url("http://localhost:31415/pump")
+                                        .contentType("application/json")
+                                        .payload(JSON.stringify(payload ))
+                                        .execute();
+
+var result = resp.getResponse();
+resp.close();</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:sequenceFlow id="SequenceFlow_1dq0ae8" sourceRef="pumpStartEventId" targetRef="pumpOnTaskId" />
+      <bpmn:intermediateCatchEvent id="IntermediateThrowEvent_0hj4hgj" name="Pump 5sec">
+        <bpmn:incoming>SequenceFlow_1ncxr97</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_085ry3e</bpmn:outgoing>
+        <bpmn:timerEventDefinition>
+          <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5S</bpmn:timeDuration>
+        </bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:sequenceFlow id="SequenceFlow_1ncxr97" sourceRef="pumpOnTaskId" targetRef="IntermediateThrowEvent_0hj4hgj" />
+      <bpmn:scriptTask id="pumpOffTaskId" name="Pump off">
+        <bpmn:incoming>SequenceFlow_085ry3e</bpmn:incoming>
+        <bpmn:outgoing>SequenceFlow_1yqsb96</bpmn:outgoing>
+        <bpmn:script>var payload = { status : false };
+
+var httpConnector = org.camunda.connect.Connectors.http(); 
+var resp = httpConnector.createRequest()
+                                        .put()
+                                        .url("http://localhost:31415/pump")
+                                        .contentType("application/json")
+                                        .payload(JSON.stringify(payload ))
+                                        .execute();
+
+var result = resp.getResponse();
+resp.close();</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:sequenceFlow id="SequenceFlow_085ry3e" sourceRef="IntermediateThrowEvent_0hj4hgj" targetRef="pumpOffTaskId" />
+      <bpmn:sequenceFlow id="SequenceFlow_1yqsb96" sourceRef="pumpOffTaskId" targetRef="pumpEndEventId" />
+    </bpmn:subProcess>
+    <bpmn:exclusiveGateway id="ExclusiveGateway_067mvwo">
+      <bpmn:incoming>SequenceFlow_0s31fqt</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_031yy14</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_1dscefx</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="endEventId" name="The end">
+      <bpmn:incoming>SequenceFlow_1dscefx</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_0mx6ls0">
+      <bpmndi:BPMNShape id="ScriptTask_0e0qag7_di" bpmnElement="pumpOnTaskId">
+        <dc:Bounds x="316" y="125" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IntermediateCatchEvent_01930h4_di" bpmnElement="IntermediateThrowEvent_0hj4hgj">
+        <dc:Bounds x="448" y="147" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="438" y="127" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ScriptTask_1fpz3nc_di" bpmnElement="pumpOffTaskId">
+        <dc:Bounds x="520" y="125" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_1yx1n3j_di" bpmnElement="pumpStartEventId">
+        <dc:Bounds x="249" y="147" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_05m4mnl_di" bpmnElement="pumpEndEventId">
+        <dc:Bounds x="653" y="147" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="SequenceFlow_1dq0ae8_di" bpmnElement="SequenceFlow_1dq0ae8">
+        <di:waypoint x="285" y="165" />
+        <di:waypoint x="316" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_1ncxr97_di" bpmnElement="SequenceFlow_1ncxr97">
+        <di:waypoint x="416" y="165" />
+        <di:waypoint x="448" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_085ry3e_di" bpmnElement="SequenceFlow_085ry3e">
+        <di:waypoint x="484" y="165" />
+        <di:waypoint x="520" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_1yqsb96_di" bpmnElement="SequenceFlow_1yqsb96">
+        <di:waypoint x="620" y="165" />
+        <di:waypoint x="653" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_0yl5yls_di" bpmnElement="Participant_0yl5yls">
+        <dc:Bounds x="123" y="61" width="719" height="584" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="startEventId">
+        <dc:Bounds x="205" y="377" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="211" y="420" width="25" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1afh8dw_di" bpmnElement="endEventId">
+        <dc:Bounds x="779" y="377" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="777" y="420" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ScriptTask_117oywc_di" bpmnElement="readSoilMoistureTaskId">
+        <dc:Bounds x="291" y="355" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ExclusiveGateway_1qu6oj3_di" bpmnElement="ExclusiveGateway_1qu6oj3" isMarkerVisible="true">
+        <dc:Bounds x="453" y="370" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ScriptTask_0uzhvjf_di" bpmnElement="flagUpTaskId">
+        <dc:Bounds x="428" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ScriptTask_1ulst6r_di" bpmnElement="flagDownTaskId">
+        <dc:Bounds x="567" y="355" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ExclusiveGateway_067mvwo_di" bpmnElement="ExclusiveGateway_067mvwo" isMarkerVisible="true">
+        <dc:Bounds x="698" y="370" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubProcess_195tqu1_di" bpmnElement="irrigationSubProcessId" isExpanded="true">
+        <dc:Bounds x="227" y="81" width="482" height="144" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="SequenceFlow_1nuhvmk_di" bpmnElement="SequenceFlow_1nuhvmk">
+        <di:waypoint x="241" y="395" />
+        <di:waypoint x="291" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_1dscefx_di" bpmnElement="SequenceFlow_1dscefx">
+        <di:waypoint x="748" y="395" />
+        <di:waypoint x="779" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_1bhjmnk_di" bpmnElement="SequenceFlow_1bhjmnk">
+        <di:waypoint x="391" y="395" />
+        <di:waypoint x="453" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_1f0lzuo_di" bpmnElement="SequenceFlow_1f0lzuo">
+        <di:waypoint x="503" y="395" />
+        <di:waypoint x="567" y="395" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="520" y="375" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_07nh3wm_di" bpmnElement="SequenceFlow_07nh3wm">
+        <di:waypoint x="478" y="420" />
+        <di:waypoint x="478" y="540" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="429" y="438" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_0s31fqt_di" bpmnElement="SequenceFlow_0s31fqt">
+        <di:waypoint x="528" y="580" />
+        <di:waypoint x="723" y="580" />
+        <di:waypoint x="723" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_031yy14_di" bpmnElement="SequenceFlow_031yy14">
+        <di:waypoint x="667" y="395" />
+        <di:waypoint x="698" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_0cfk0bp_di" bpmnElement="SequenceFlow_0cfk0bp">
+        <di:waypoint x="341" y="225" />
+        <di:waypoint x="341" y="355" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_0439ry3_di" bpmnElement="SequenceFlow_0439ry3">
+        <di:waypoint x="478" y="370" />
+        <di:waypoint x="478" y="225" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="486" y="299" width="43" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Lane_1dm4z0v_di" bpmnElement="Lane_1dm4z0v">
+        <dc:Bounds x="153" y="61" width="689" height="222" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1kmxwlp_di" bpmnElement="Lane_1kmxwlp">
+        <dc:Bounds x="153" y="283" width="689" height="182" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_0tudj5g_di" bpmnElement="Lane_0tudj5g">
+        <dc:Bounds x="153" y="465" width="689" height="180" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
