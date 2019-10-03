@@ -6,7 +6,7 @@
 #include <ESP8266WebServer.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
-#include <Fonts/FreeSans18pt7b.h>
+#include <Fonts/FreeSans9pt7b.h>
 #include "Adafruit_PCD8544.h"
 #include <Adafruit_MCP3008.h>
 #include <ArduinoJson.h>
@@ -19,6 +19,7 @@
 #define CS_LCD   4
 #define CS_MCP  15
 #define RST_LCD 16
+#define PUMP     2
 
 Adafruit_PCD8544 display = Adafruit_PCD8544(SCLK,MOSI,DC,CS_LCD,RST_LCD);
 Adafruit_MCP3008 adc;
@@ -46,12 +47,16 @@ const char *description[] = { "saturated",
 IPAddress ip;  
 
 void setup()   {
-  Serial.begin(115200);
-  delay(10);
-  Serial.println('\n');
 
+    pinMode(PUMP, OUTPUT);     // pump pin to output
+    digitalWrite(PUMP, LOW);   // pump off
+    
+    Serial.begin(115200);
+    delay(10);
+    Serial.println('\n');
+    
     display.begin();
-    display.setContrast(55);
+    display.setContrast(50);
     display.setFont(NULL);
     display.clearDisplay();
     display.display();
@@ -97,6 +102,8 @@ void setup()   {
         Serial.println("Error setting up MDNS responder!");
     }
     adc.begin(SCLK,MOSI,MISO,CS_MCP);
+
+    displayMoisture();
     
     server.on("/soilmoisture", HTTP_GET, []() {
 
@@ -108,6 +115,26 @@ void setup()   {
         serializeJson(doc, buffer);
         server.send(200, "application/json", buffer);
     });
+
+    server.on("/pump", HTTP_PUT, []() {
+
+        StaticJsonDocument<200> doc;
+
+        deserializeJson(doc,server.arg("plain"));
+        if (doc.containsKey("status")) {
+            if ((bool)doc["status"]) {
+                digitalWrite(PUMP, HIGH);  // pump on
+            } else {
+                digitalWrite(PUMP, LOW);  // pump off
+            }
+        } else if (doc.containsKey("duration")) {
+            digitalWrite(PUMP, HIGH);  // pump on
+            delay(doc["duration"]);
+            digitalWrite(PUMP, LOW);  // pump off
+        }
+        server.send(200);
+    });
+    
     server.onNotFound([]() {
         server.send(404, "text/plain", "404: Not found");
     });
@@ -116,7 +143,7 @@ void setup()   {
     Serial.println("HTTP server started");
 
     
-    soilMoistureTicker.attach(10, displayMoisture);    
+    soilMoistureTicker.attach(120, displayMoisture);    
 }
 
 
@@ -128,9 +155,10 @@ void displayMoisture() {
     int moisture =  getMoisture();
     display.clearDisplay();
     
-    display.setFont(&FreeSans18pt7b);
-    display.setCursor(0,(display.height() + 18) / 2);
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(0,15);
     display.setTextSize(1);
+    display.print("Dry: ");
     display.print(moisture);
     display.print("%");
     //display.drawBitmap(icon_data_pos_x,icon_data_pos_y, humidity_icon_bmp, humidity_icon_width, humidity_icon_height, WHITE); 
