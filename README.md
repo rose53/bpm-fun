@@ -1,5 +1,7 @@
 # Have fun with workflows
 
+![](./doc/irrigation.jpg "Overview")
+
 ## Soil moisture
 To measure to soil moisture, the [Sensor](https://www.amazon.de/AZDelivery-Bodenfeuchtesensor-Hygrometer-kapazitiv-Arduino/dp/B07HJ6N1S4?pf_rd_p=0f6687bc-b0cb-44d9-9696-138c1879ad4f&pd_rd_wg=qVeJu&pf_rd_r=G0MBB8D6FN4A0QK7HZCZ&ref_=pd_gw_cr_simh&pd_rd_w=ljE2b&pd_rd_r=f5ef5e3b-2ae1-4525-bbc8-39a60900a4d1) delivers an electrical voltage representing the moisture. This value is calibrated for water and air and a value for the dryness is calculated.
 
